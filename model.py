@@ -1,6 +1,9 @@
+# model.py
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+
+from utils import *
 
 torch.manual_seed(0xabc0)
 
@@ -22,6 +25,8 @@ class Head(nn.Module):
         self.value = nn.Linear(C1, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size, device=device)).to(torch.float32)) # this creates the lower triangle matrix
         self.dropout = nn.Dropout(dropout)
+        
+ 
     def forward(self, x):
         B,T,C = x.shape
         k = self.key(x)
@@ -34,6 +39,8 @@ class Head(nn.Module):
         v = self.value(x)
         out = wei @ v
         return out
+    
+    
     
     
     
@@ -86,13 +93,15 @@ class Block(nn.Module):
     
 # main model
 class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self, chars: list[str]):
         super().__init__()
+        vocab_size = len(chars)
         self.token_embedding_table = nn.Embedding(vocab_size, C1) # table of size vocab_size x C1
         self.position_embedding_table = nn.Embedding(block_size, C1)
         self.blocks = nn.Sequential(*[Block(C1, n_head) for _ in range(n_layer)])
         self.ln_f = nn.LayerNorm(C1)
         self.lm_head = nn.Linear(C1, vocab_size)
+
         
     def forward(self, idx, targets=None):
         B, T = idx.shape
@@ -114,17 +123,23 @@ class BigramLanguageModel(nn.Module):
         return logits, loss
 
     
-    def generate(self,idx, max_new_tokens, verbose=False):
-        for i in range(max_new_tokens):
+    def generate(self, idx, max_new_tokens, verbose=False, stream_fn=None):
+        for _ in range(max_new_tokens):
                 idx_cond = idx[:, -block_size:]
-                logits, loss = self(idx_cond)
+                logits, _ = self(idx_cond)
                 logits = logits[:, -1, :] # focus on the last time step
                 probs = F.softmax(logits, dim=-1) # probabilities
                 idx_next = torch.multinomial(probs, num_samples=1) # get the i +1th prediction
+                idx = torch.cat((idx, idx_next), dim=1)  # concatenate the prediction with the current sequence
+                
+                token_id = idx_next[0].item()
+                char = decode_list([token_id])
+                
                 if verbose:
                     print(idx_next[0][0].item())
-                idx = torch.cat((idx, idx_next), dim=1)  # concatenate the prediction with the current sequence
+                    
+                if stream_fn:
+                    stream_fn(char)
+        
+        idx = decode_list(idx[0].tolist())
         return idx
-            
-            
-            
