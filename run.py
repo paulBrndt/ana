@@ -1,3 +1,4 @@
+# run.py
 import torch
 from model import BigramLanguageModel
 
@@ -32,7 +33,7 @@ def generate(model: BigramLanguageModel, context="", max_new_tokens=300) -> str:
 model = BigramLanguageModel(vocab_size)
 model.to(device)
 print(f"device: {device}")
-model_path = "models/1752776734.190778/model-4700-tensor(2.5562, device='mps:0', grad_fn=<NllLossBackward0>)"
+model_path = "main.pt"
 model.load_state_dict(torch.load(model_path, map_location=device))
 print("loaded")
 print(generate(model, "miranda"))
